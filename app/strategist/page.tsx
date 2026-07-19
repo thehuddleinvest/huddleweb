@@ -1,21 +1,47 @@
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isStrategist } from "@/lib/auth";
+import { SignOutButton } from "@/components/auth/sign-out-button";
+import { StrategistConsole, type Pick } from "@/components/strategist/strategist-console";
 import { DISCLAIMERS } from "@/lib/tiers";
 
-// Strategist dashboard v0 (§7.1): view ranked shortlist, approve picks, publish.
-// Gate behind auth + a strategist role check before wiring real data.
-export default function StrategistPage() {
+export const dynamic = "force-dynamic";
+
+export default async function StrategistPage() {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/sign-in?next=/strategist");
+  if (!isStrategist(user.email)) redirect("/dashboard");
+
+  // Strategist sees all picks (drafts + published) — read with service role.
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("picks")
+    .select(
+      "id, tier, ticker, category, entry_price_reference, strategist_notes, published_at, created_at"
+    )
+    .order("created_at", { ascending: false });
+
+  const picks = (data ?? []) as Pick[];
+
   return (
     <main className="container py-12">
-      <h1 className="text-2xl font-medium">Strategist dashboard</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Review the ranked shortlist, approve picks, and publish to subscribers.
-      </p>
-
-      <section className="mt-8">
-        <h2 className="text-sm font-medium text-muted-foreground">Ranked shortlist</h2>
-        <div className="mt-3 rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          Connect the <code>rankings</code> table (Modal batch job) to populate this list.
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-medium">Strategist console</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Create picks, then publish to send them to subscribers of that tier.
+          </p>
         </div>
-      </section>
+        <SignOutButton />
+      </div>
+
+      <div className="mt-8">
+        <StrategistConsole initialPicks={picks} />
+      </div>
 
       <footer className="mt-16 border-t border-border pt-4 text-xs text-muted-foreground">
         {DISCLAIMERS.dashboardFooter}

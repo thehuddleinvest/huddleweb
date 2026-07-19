@@ -32,7 +32,17 @@ export default async function DashboardPage({
     .limit(1)
     .maybeSingle();
 
-  const greetingName = profile?.first_name || profile?.email?.split("@")[0] || "there";
+  // RLS returns only published picks for tiers the user is entitled to.
+  const { data: pickRows } = await supabase
+    .from("picks")
+    .select("id, ticker, tier, category, entry_price_reference, strategist_notes, published_at")
+    .not("published_at", "is", null)
+    .order("published_at", { ascending: false })
+    .limit(25);
+  const picks = pickRows ?? [];
+
+  const greetingName =
+    profile?.first_name || profile?.email?.split("@")[0] || "there";
   const tierName = sub ? TIERS.find((t) => t.id === sub.tier)?.name ?? sub.tier : null;
   const isActive = sub?.status === "active" || sub?.status === "trialing";
 
@@ -42,7 +52,7 @@ export default async function DashboardPage({
         <div>
           <h1 className="text-2xl font-medium">Welcome, {greetingName}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {tierName ? `You're on ${tierName}.` : "Here are today's picks for your tier."}
+            {tierName ? `You're on ${tierName}.` : "Choose a tier to start getting the daily shortlist."}
           </p>
         </div>
         <SignOutButton />
@@ -69,9 +79,36 @@ export default async function DashboardPage({
 
       <section className="mt-8">
         <h2 className="text-sm font-medium text-muted-foreground">Today's picks</h2>
-        <div className="mt-3 rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          No picks published yet today. Check back after the market opens.
-        </div>
+
+        {picks.length === 0 ? (
+          <div className="mt-3 rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            No picks published yet. Check back after the market opens.
+          </div>
+        ) : (
+          <ul className="mt-3 space-y-3">
+            {picks.map((p) => (
+              <li key={p.id} className="rounded-xl border border-border bg-card p-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-semibold">{p.ticker}</span>
+                  <span className="rounded-md bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+                    {p.category === "buy_today" ? "Buy today" : "Daily alert"}
+                  </span>
+                </div>
+                {p.entry_price_reference != null && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Entry price reference: {p.entry_price_reference}
+                  </p>
+                )}
+                {p.strategist_notes && (
+                  <p className="mt-2 text-sm leading-relaxed">{p.strategist_notes}</p>
+                )}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Educational analysis, not a recommendation. You make the call.
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <footer className="mt-16 border-t border-border pt-4 text-xs text-muted-foreground">
