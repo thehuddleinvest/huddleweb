@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isStrategist } from "@/lib/auth";
 import { TIERS } from "@/lib/tiers";
+import { sendTelegramMessage, formatPickMessage } from "@/lib/telegram";
 
 export const runtime = "nodejs";
 
@@ -109,6 +110,40 @@ export async function PATCH(req: Request) {
     metadata: { tier: data?.tier, ticker: data?.ticker },
   });
 
-  // TODO: trigger Telegram/email delivery to entitled subscribers here.
+  // Deliver to entitled subscribers who have linked Telegram.
+  if (data) {
+    try {
+      const { data: subs } = await admin
+        .from("subscriptions")
+        .select("user_id")
+        .eq("tier", data.tier)
+        .in("status", ["active", "trialing"]);
+      const userIds = Array.from(
+        new Set((subs ?? []).map((s: { user_id: string }) => s.user_id))
+      );
+      if (userIds.length) {
+        const { data: recips } = await admin
+          .from("users")
+          .select("id, telegram_chat_id, notification_preference")
+          .in("id", userIds)
+          .not("telegram_chat_id", "is", null);
+        const text = formatPickMessage(data);
+        for (const u of recips ?? []) {
+          if (u.notification_preference === "email") continue;
+          const ok = await sendTelegramMessage(u.telegram_chat_id as number, text);
+          await admin.from("notifications").insert({
+            user_id: u.id,
+            channel: "telegram",
+            message_type: "pick_delivery",
+            content_snapshot: text,
+            delivered: ok,
+          });
+        }
+      }
+    } catch {
+      // Delivery failures must not fail the publish.
+    }
+  }
+
   return NextResponse.json({ pick: data });
 }

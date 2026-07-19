@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { TelegramConnect } from "@/components/dashboard/telegram-connect";
 import { buttonVariants } from "@/components/ui/button";
 import { DISCLAIMERS, TIERS } from "@/lib/tiers";
 
@@ -20,7 +21,7 @@ export default async function DashboardPage({
 
   const { data: profile } = await supabase
     .from("users")
-    .select("first_name, email")
+    .select("first_name, email, telegram_chat_id")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -76,6 +77,8 @@ export default async function DashboardPage({
           </Link>
         </div>
       )}
+
+      {sub && <TelegramConnect connected={!!profile?.telegram_chat_id} />}
 
       <section className="mt-8">
         <h2 className="text-sm font-medium text-muted-foreground">Today's picks</h2>
