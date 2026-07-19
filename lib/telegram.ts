@@ -2,28 +2,64 @@ import { TIERS } from "@/lib/tiers";
 
 const API = "https://api.telegram.org";
 
-// Send a plain HTML message via the Telegram Bot API. Returns true on 200.
-export async function sendTelegramMessage(
-  chatId: number | string,
-  text: string
-): Promise<boolean> {
+type InlineKeyboard = { inline_keyboard: { text: string; callback_data: string }[][] };
+
+async function tgApi(method: string, payload: Record<string, unknown>): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return false;
   try {
-    const res = await fetch(`${API}/bot${token}/sendMessage`, {
+    const res = await fetch(`${API}/bot${token}/${method}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-      }),
+      body: JSON.stringify(payload),
     });
     return res.ok;
   } catch {
     return false;
   }
+}
+
+// Send an HTML message, optionally with inline buttons. Returns true on 200.
+export async function sendTelegramMessage(
+  chatId: number | string,
+  text: string,
+  replyMarkup?: InlineKeyboard
+): Promise<boolean> {
+  return tgApi("sendMessage", {
+    chat_id: chatId,
+    text,
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+  });
+}
+
+// Acknowledge a button tap so Telegram stops the loading spinner.
+export async function answerCallbackQuery(id: string, text?: string): Promise<boolean> {
+  return tgApi("answerCallbackQuery", { callback_query_id: id, ...(text ? { text } : {}) });
+}
+
+// Remove the inline buttons from a message (after it's been acted on).
+export async function clearButtons(
+  chatId: number | string,
+  messageId: number
+): Promise<boolean> {
+  return tgApi("editMessageReplyMarkup", {
+    chat_id: chatId,
+    message_id: messageId,
+    reply_markup: { inline_keyboard: [] },
+  });
+}
+
+export function approveKeyboard(tradeId: string, amount: number): InlineKeyboard {
+  return {
+    inline_keyboard: [
+      [
+        { text: `✅ Approve $${amount}`, callback_data: `a:${tradeId}` },
+        { text: "✕ Skip", callback_data: `s:${tradeId}` },
+      ],
+    ],
+  };
 }
 
 function escapeHtml(s: string): string {

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isStrategist } from "@/lib/auth";
 import { TIERS } from "@/lib/tiers";
-import { sendTelegramMessage, formatPickMessage } from "@/lib/telegram";
+import { sendTelegramMessage, formatPickMessage, approveKeyboard } from "@/lib/telegram";
 
 export const runtime = "nodejs";
 
@@ -124,20 +124,60 @@ export async function PATCH(req: Request) {
       if (userIds.length) {
         const { data: recips } = await admin
           .from("users")
-          .select("id, telegram_chat_id, notification_preference")
+          .select(
+            "id, telegram_chat_id, notification_preference, alpaca_oauth_token_encrypted, default_trade_amounts"
+          )
           .in("id", userIds)
           .not("telegram_chat_id", "is", null);
         const text = formatPickMessage(data);
         for (const u of recips ?? []) {
           if (u.notification_preference === "email") continue;
-          const ok = await sendTelegramMessage(u.telegram_chat_id as number, text);
-          await admin.from("notifications").insert({
-            user_id: u.id,
-            channel: "telegram",
-            message_type: "pick_delivery",
-            content_snapshot: text,
-            delivered: ok,
-          });
+          const chatId = u.telegram_chat_id as number;
+
+          // Playbook: a Drive pick to a subscriber with Alpaca connected gets
+          // an approve/skip prompt (each trade individually approved, §2.2).
+          const playbookEligible =
+            data.tier === "drive" && !!u.alpaca_oauth_token_encrypted;
+
+          if (playbookEligible) {
+            const amount = Number(u.default_trade_amounts?.drive) || 500;
+            const { data: trade } = await admin
+              .from("trades")
+              .insert({
+                user_id: u.id,
+                pick_id: data.id,
+                ticker: data.ticker,
+                side: "buy",
+                dollar_amount: amount,
+                status: "pending_approval",
+              })
+              .select("id")
+              .single();
+            const prompt =
+              text +
+              `\n\n<b>Playbook:</b> approve to buy $${amount} of ${data.ticker} in your Alpaca paper account.\n<i>You are executing this trade. Losses are possible. This is not investment advice.</i>`;
+            const ok = await sendTelegramMessage(
+              chatId,
+              prompt,
+              trade ? approveKeyboard(trade.id, amount) : undefined
+            );
+            await admin.from("notifications").insert({
+              user_id: u.id,
+              channel: "telegram",
+              message_type: "trade_approval_request",
+              content_snapshot: prompt,
+              delivered: ok,
+            });
+          } else {
+            const ok = await sendTelegramMessage(chatId, text);
+            await admin.from("notifications").insert({
+              user_id: u.id,
+              channel: "telegram",
+              message_type: "pick_delivery",
+              content_snapshot: text,
+              delivered: ok,
+            });
+          }
         }
       }
     } catch {

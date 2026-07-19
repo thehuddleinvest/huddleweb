@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { TelegramConnect } from "@/components/dashboard/telegram-connect";
+import { PlaybookConnect } from "@/components/dashboard/playbook-connect";
 import { buttonVariants } from "@/components/ui/button";
 import { DISCLAIMERS, TIERS } from "@/lib/tiers";
 
@@ -21,7 +22,7 @@ export default async function DashboardPage({
 
   const { data: profile } = await supabase
     .from("users")
-    .select("first_name, email, telegram_chat_id")
+    .select("first_name, email, telegram_chat_id, alpaca_oauth_token_encrypted")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -79,6 +80,13 @@ export default async function DashboardPage({
       )}
 
       {sub && <TelegramConnect connected={!!profile?.telegram_chat_id} />}
+
+      {sub?.tier === "drive" && (
+        <PlaybookConnect
+          connected={!!profile?.alpaca_oauth_token_encrypted}
+          telegramConnected={!!profile?.telegram_chat_id}
+        />
+      )}
 
       <section className="mt-8">
         <h2 className="text-sm font-medium text-muted-foreground">Today's picks</h2>

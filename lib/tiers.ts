@@ -80,4 +80,6 @@ export const DISCLAIMERS = {
     "I understand that The Huddle is an educational and informational service only. Nothing published on this platform constitutes investment advice, a recommendation to buy or sell any security, or an offer of any financial product.",
   riskAckTwo:
     "I understand that trading securities involves substantial risk of loss, including the potential loss of my entire investment. Past performance does not guarantee future results. I am solely responsible for my own investment decisions, and I will not hold The Huddle or its operators responsible for any losses I incur.",
+  playbookAck:
+    "I understand that The Playbook executes trades only when I explicitly approve each trade individually. I understand that market conditions can change between when a pick is published and when a trade is executed. I take full responsibility for every trade I approve.",
 };
