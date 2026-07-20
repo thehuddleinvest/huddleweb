@@ -167,6 +167,7 @@ export async function PATCH(req: Request) {
               message_type: "trade_approval_request",
               content_snapshot: prompt,
               delivered: ok,
+              pick_id: data.id,
             });
           } else {
             const ok = await sendTelegramMessage(chatId, text);
@@ -176,6 +177,7 @@ export async function PATCH(req: Request) {
               message_type: "pick_delivery",
               content_snapshot: text,
               delivered: ok,
+              pick_id: data.id,
             });
           }
         }
@@ -186,4 +188,41 @@ export async function PATCH(req: Request) {
   }
 
   return NextResponse.json({ pick: data });
+}
+
+// Soft-delete a draft pick (only if it was never published).
+export async function DELETE(req: Request) {
+  const user = await requireStrategist();
+  if (!user) {
+    return NextResponse.json({ error: "Not authorized." }, { status: 403 });
+  }
+  const { id } = (await req.json().catch(() => ({}))) as { id?: string };
+  if (!id) return NextResponse.json({ error: "Missing pick id." }, { status: 400 });
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("picks")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id)
+    .is("published_at", null)
+    .is("deleted_at", null)
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    return NextResponse.json(
+      { error: "Only unpublished drafts can be deleted." },
+      { status: 400 }
+    );
+  }
+
+  await admin.from("audit_log").insert({
+    actor_type: "strategist",
+    actor_id: user.id,
+    action: "pick_deleted",
+    entity_type: "pick",
+    entity_id: id,
+  });
+
+  return NextResponse.json({ ok: true });
 }

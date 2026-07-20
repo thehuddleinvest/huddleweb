@@ -56,6 +56,13 @@ export async function POST(req: Request) {
         row && !row.used_at && new Date(row.expires_at).getTime() > Date.now();
 
       if (valid) {
+        // A Telegram chat belongs to exactly one account — detach it from any
+        // other user first so lookups by chat_id are always unambiguous.
+        await admin
+          .from("users")
+          .update({ telegram_chat_id: null })
+          .eq("telegram_chat_id", chatId)
+          .neq("id", row.user_id);
         await admin
           .from("users")
           .update({ telegram_chat_id: chatId, notification_preference: "both" })
