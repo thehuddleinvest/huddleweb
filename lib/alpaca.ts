@@ -40,6 +40,33 @@ export interface OrderResult {
   error?: string;
 }
 
+export interface AlpacaPosition {
+  symbol: string;
+  qty: string;
+  avg_entry_price: string;
+  current_price: string;
+  market_value: string;
+  unrealized_pl: string;
+  unrealized_plpc: string;
+}
+
+// Fetch open positions from the paper account. Returns [] if none, null on error.
+export async function getAlpacaPositions(
+  keyId: string,
+  secret: string
+): Promise<AlpacaPosition[] | null> {
+  try {
+    const res = await fetch(`${PAPER_BASE}/v2/positions`, {
+      headers: headers(keyId, secret),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as AlpacaPosition[];
+  } catch {
+    return null;
+  }
+}
+
 // Place a notional (dollar-amount) market buy on the paper account.
 export async function placeNotionalBuy(
   keyId: string,
