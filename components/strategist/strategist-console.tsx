@@ -220,7 +220,7 @@ export function StrategistConsole({
       <div>
         <div className="mb-4 inline-flex rounded-full border border-border bg-secondary/50 p-1 text-sm">
           <button onClick={() => setTab("shortlist")} className={`rounded-full px-4 py-1.5 font-medium transition-colors ${tab === "shortlist" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
-            Shortlist{rankings.length ? ` (${clusters.length})` : ""}
+            Shortlist
           </button>
           <button onClick={() => setTab("picks")} className={`rounded-full px-4 py-1.5 font-medium transition-colors ${tab === "picks" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
             Picks
