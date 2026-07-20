@@ -7,6 +7,8 @@ import {
   StrategistConsole,
   type Pick,
   type Ranking,
+  type ScannerAlert,
+  type ScannerReport,
 } from "@/components/strategist/strategist-console";
 import { DISCLAIMERS } from "@/lib/tiers";
 
@@ -39,6 +41,20 @@ export default async function StrategistPage() {
     .order("rank", { ascending: true });
   const rankings = (rankData ?? []) as Ranking[];
 
+  const { data: alertData } = await admin
+    .from("scanner_alerts")
+    .select("id, detected_at, symbol, cluster, setup_type, price, score")
+    .order("detected_at", { ascending: false })
+    .limit(50);
+  const alerts = (alertData ?? []) as ScannerAlert[];
+
+  const { data: reportData } = await admin
+    .from("scanner_reports")
+    .select("id, report_date, kind, payload, created_at")
+    .order("created_at", { ascending: false })
+    .limit(10);
+  const reports = (reportData ?? []) as ScannerReport[];
+
   return (
     <main className="container py-12">
       <div className="flex items-center justify-between">
@@ -52,7 +68,12 @@ export default async function StrategistPage() {
       </div>
 
       <div className="mt-8">
-        <StrategistConsole initialPicks={picks} rankings={rankings} />
+        <StrategistConsole
+          initialPicks={picks}
+          rankings={rankings}
+          alerts={alerts}
+          reports={reports}
+        />
       </div>
 
       <footer className="mt-16 border-t border-border pt-4 text-xs text-muted-foreground">
